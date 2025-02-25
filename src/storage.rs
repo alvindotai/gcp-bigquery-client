@@ -11,7 +11,11 @@ use tonic::{
     Request, Streaming,
 };
 
-use crate::google::cloud::bigquery::storage::v1::{GetWriteStreamRequest, WriteStream, WriteStreamView};
+use crate::google::cloud::bigquery::storage::v1::big_query_read_client::BigQueryReadClient;
+use crate::google::cloud::bigquery::storage::v1::{
+    CreateReadSessionRequest, GetWriteStreamRequest, ReadRowsRequest, ReadRowsResponse, ReadSession, WriteStream,
+    WriteStreamView,
+};
 use crate::{
     auth::Authenticator,
     error::BQError,
@@ -161,19 +165,40 @@ impl Display for StreamName {
 #[derive(Clone)]
 pub struct StorageApi {
     write_client: BigQueryWriteClient<Channel>,
+    read_client: BigQueryReadClient<Channel>,
     auth: Arc<dyn Authenticator>,
     base_url: String,
 }
 
 impl StorageApi {
-    pub(crate) fn new(write_client: BigQueryWriteClient<Channel>, auth: Arc<dyn Authenticator>) -> Self {
+    pub(crate) fn new(
+        write_client: BigQueryWriteClient<Channel>,
+        read_client: BigQueryReadClient<Channel>,
+        auth: Arc<dyn Authenticator>,
+    ) -> Self {
         Self {
             write_client,
+            read_client,
             auth,
             base_url: BIG_QUERY_V2_URL.to_string(),
         }
     }
 
+    pub(crate) async fn new_read_client() -> Result<BigQueryReadClient<Channel>, BQError> {
+        // Since Tonic 0.12.0, TLS root certificates are no longer implicit.
+        // We need to specify them explicitly.
+        // See: https://github.com/hyperium/tonic/pull/1731
+        let tls_config = ClientTlsConfig::new()
+            .domain_name(BIGQUERY_STORAGE_API_DOMAIN)
+            .with_native_roots();
+        let channel = Channel::from_static(BIG_QUERY_STORAGE_API_URL)
+            .tls_config(tls_config)?
+            .connect()
+            .await?;
+        let client = BigQueryReadClient::new(channel);
+
+        Ok(client)
+    }
     pub(crate) async fn new_write_client() -> Result<BigQueryWriteClient<Channel>, BQError> {
         // Since Tonic 0.12.0, TLS root certificates are no longer implicit.
         // We need to specify them explicitly.
@@ -193,6 +218,28 @@ impl StorageApi {
     pub(crate) fn with_base_url(&mut self, base_url: String) -> &mut Self {
         self.base_url = base_url;
         self
+    }
+
+    pub async fn create_read_session(&mut self, request: CreateReadSessionRequest) -> Result<ReadSession, BQError> {
+        let req = self.new_authorized_request(request).await?;
+        let response = self.read_client.create_read_session(req).await?;
+        let read_session = response.into_inner();
+        Ok(read_session)
+    }
+
+    pub async fn read_rows(&mut self, read_stream: &str) -> Result<Streaming<ReadRowsResponse>, BQError> {
+        let read_rows_request = ReadRowsRequest {
+            read_stream: read_stream.to_string(),
+            offset: 0,
+        };
+
+        let req = self.new_authorized_request(read_rows_request).await?;
+
+        let response = self.read_client.read_rows(req).await?;
+
+        let streaming = response.into_inner();
+
+        Ok(streaming)
     }
 
     /// Append rows to a table via the BigQuery Storage Write API.
