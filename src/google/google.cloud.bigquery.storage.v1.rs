@@ -1473,7 +1473,9 @@ pub mod big_query_read_client {
         <T::ResponseBody as Body>::Error: Into<StdError> + Send,
     {
         pub fn new(inner: T) -> Self {
-            let inner = tonic::client::Grpc::new(inner);
+            // 2gb, a bit much, but default is 4mb and this limits a lot the read storage api
+            let limit = 2 * 1024 * 1024 * 1024;
+            let inner = tonic::client::Grpc::new(inner).max_decoding_message_size(limit);
             Self { inner }
         }
         pub fn with_origin(inner: T, origin: Uri) -> Self {
