@@ -2,6 +2,7 @@ use crate::model::clustering::Clustering;
 use crate::model::destination_table_properties::DestinationTableProperties;
 use crate::model::encryption_configuration::EncryptionConfiguration;
 use crate::model::hive_partitioning_options::HivePartitioningOptions;
+use crate::model::parquet_options::ParquetOptions;
 use crate::model::range_partitioning::RangePartitioning;
 use crate::model::table_reference::TableReference;
 use crate::model::table_schema::TableSchema;
@@ -48,6 +49,8 @@ pub struct JobConfigurationLoad {
     /// [Optional] If sourceFormat is set to newline-delimited JSON, indicates whether it should be processed as a JSON variant such as GeoJSON. For a sourceFormat other than JSON, omit this field. If the sourceFormat is newline-delimited JSON: - for newline-delimited GeoJSON: set to GEOJSON.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub json_extension: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parquet_options: Option<ParquetOptions>,
     /// [Optional] The maximum number of bad records that BigQuery can ignore when running the job. If the number of bad records exceeds this value, an invalid error is returned in the job result. This is only valid for CSV and JSON. The default value is 0, which requires that all records are valid.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_bad_records: Option<i32>,

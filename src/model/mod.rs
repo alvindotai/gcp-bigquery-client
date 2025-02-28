@@ -141,3 +141,5 @@ pub mod training_run;
 pub mod transaction_info;
 pub mod user_defined_function_resource;
 pub mod view_definition;
+
+pub mod parquet_options;
