@@ -143,3 +143,4 @@ pub mod user_defined_function_resource;
 pub mod view_definition;
 
 pub mod parquet_options;
+pub mod performance_insights;
