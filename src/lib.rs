@@ -23,7 +23,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use client_builder::ClientBuilder;
-use reqwest::Response;
+use reqwest::{header, Response};
 use serde::Deserialize;
 use storage::StorageApi;
 use yup_oauth2::ServiceAccountKey;
@@ -75,9 +75,14 @@ pub struct Client {
 
 impl Client {
     pub async fn from_authenticator(auth: Arc<dyn Authenticator>) -> Result<Self, BQError> {
-        let write_client = StorageApi::new_write_client().await?;
-        let read_client = StorageApi::new_read_client().await?;
-        let client = reqwest::Client::new();
+        let user_agent = "alvin-connect-service/1.0 (GPN:Alvin.ai;)";
+        let mut headers = header::HeaderMap::new();
+        headers.insert(header::USER_AGENT, header::HeaderValue::from_static(user_agent));
+
+        let client = reqwest::Client::builder().default_headers(headers).build()?;
+        let write_client = StorageApi::new_write_client_with_user_agent(user_agent).await?;
+        let read_client = StorageApi::new_read_client_with_user_agent(user_agent).await?;
+
         Ok(Self {
             dataset_api: DatasetApi::new(client.clone(), Arc::clone(&auth)),
             table_api: TableApi::new(client.clone(), Arc::clone(&auth)),
