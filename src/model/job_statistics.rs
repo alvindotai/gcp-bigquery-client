@@ -38,7 +38,8 @@ pub struct JobStatistics {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reservation_usage: Option<Vec<JobStatisticsReservationUsage>>,
     /// [Output-only] Name of the primary reservation assigned to this job. Note that this could be different than reservations reported in the reservation usage field if parent reservations were used to execute this job.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// do this change in the upstream repo so we can remove the subrepo dep.
+    #[serde(skip_serializing_if = "Option::is_none", rename = "reservation_id")]
     pub reservation_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub row_level_security_statistics: Option<RowLevelSecurityStatistics>,

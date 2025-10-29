@@ -1,6 +1,7 @@
 use crate::model::bigquery_model_training::BigQueryModelTraining;
 use crate::model::explain_query_stage::ExplainQueryStage;
 use crate::model::job_statistics_reservation_usage::JobStatisticsReservationUsage;
+use crate::model::performance_insights::PerformanceInsights;
 use crate::model::query_parameter::QueryParameter;
 use crate::model::query_timeline_sample::QueryTimelineSample;
 use crate::model::routine_reference::RoutineReference;
@@ -82,4 +83,7 @@ pub struct JobStatistics2 {
     /// Standard SQL only: list of undeclared query parameters detected during a dry run validation.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub undeclared_query_parameters: Option<Vec<QueryParameter>>,
+    /// [Output-only] Performance insights for the query
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub performance_insights: Option<PerformanceInsights>,
 }

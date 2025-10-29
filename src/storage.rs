@@ -233,10 +233,10 @@ impl StorageApi {
         Ok(read_session)
     }
 
-    pub async fn read_rows(&mut self, read_stream: &str) -> Result<Streaming<ReadRowsResponse>, BQError> {
+    pub async fn read_rows(&mut self, read_stream: &str, offset: i64) -> Result<Streaming<ReadRowsResponse>, BQError> {
         let read_rows_request = ReadRowsRequest {
             read_stream: read_stream.to_string(),
-            offset: 0,
+            offset,
         };
 
         let req = self.new_authorized_request(read_rows_request).await?;
