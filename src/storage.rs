@@ -184,7 +184,9 @@ impl StorageApi {
         }
     }
 
-    pub(crate) async fn new_read_client() -> Result<BigQueryReadClient<Channel>, BQError> {
+    pub(crate) async fn new_read_client_with_user_agent(
+        user_agent: &str,
+    ) -> Result<BigQueryReadClient<Channel>, BQError> {
         // Since Tonic 0.12.0, TLS root certificates are no longer implicit.
         // We need to specify them explicitly.
         // See: https://github.com/hyperium/tonic/pull/1731
@@ -193,13 +195,16 @@ impl StorageApi {
             .with_native_roots();
         let channel = Channel::from_static(BIG_QUERY_STORAGE_API_URL)
             .tls_config(tls_config)?
+            .user_agent(user_agent)?
             .connect()
             .await?;
         let client = BigQueryReadClient::new(channel);
 
         Ok(client)
     }
-    pub(crate) async fn new_write_client() -> Result<BigQueryWriteClient<Channel>, BQError> {
+    pub(crate) async fn new_write_client_with_user_agent(
+        user_agent: &str,
+    ) -> Result<BigQueryWriteClient<Channel>, BQError> {
         // Since Tonic 0.12.0, TLS root certificates are no longer implicit.
         // We need to specify them explicitly.
         // See: https://github.com/hyperium/tonic/pull/1731
@@ -208,6 +213,7 @@ impl StorageApi {
             .with_native_roots();
         let channel = Channel::from_static(BIG_QUERY_STORAGE_API_URL)
             .tls_config(tls_config)?
+            .user_agent(user_agent)?
             .connect()
             .await?;
         let write_client = BigQueryWriteClient::new(channel);
