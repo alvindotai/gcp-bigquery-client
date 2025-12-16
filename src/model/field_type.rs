@@ -22,6 +22,7 @@ pub enum FieldType {
     Geography,
     Json,
     Interval,
+    Range,
 }
 
 pub fn serialize_json_as_string<S>(json: &serde_json::value::Value, s: S) -> Result<S::Ok, S::Error>
