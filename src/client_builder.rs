@@ -1,10 +1,11 @@
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use yup_oauth2::ServiceAccountKey;
 
 use crate::auth::{
-    application_default_credentials_authenticator, authorized_user_authenticator,
-    installed_flow_authenticator, service_account_authenticator, ServiceAccountAuthenticator,
+    application_default_credentials_authenticator, authorized_user_authenticator, installed_flow_authenticator,
+    service_account_authenticator, Authenticator, ServiceAccountAuthenticator,
 };
 use crate::error::BQError;
 use crate::{Client, BIG_QUERY_AUTH_URL, BIG_QUERY_V2_URL};
@@ -32,6 +33,12 @@ impl ClientBuilder {
         self
     }
 
+    pub async fn build_from_authenticator(&self, auth: Arc<dyn Authenticator>) -> Result<Client, BQError> {
+        let mut client = Client::from_authenticator(auth).await?;
+        client.v2_base_url(self.v2_base_url.clone());
+        Ok(client)
+    }
+
     pub async fn build_from_service_account_key(
         &self,
         sa_key: ServiceAccountKey,
@@ -42,38 +49,28 @@ impl ClientBuilder {
         } else {
             self.auth_base_url.clone()
         };
-        let sa_auth =
-            ServiceAccountAuthenticator::from_service_account_key(sa_key, &[&scope]).await?;
+        let sa_auth = ServiceAccountAuthenticator::from_service_account_key(sa_key, &[&scope]).await?;
 
-        let mut client = Client::from_authenticator(sa_auth);
-        client.v2_base_url(self.v2_base_url.clone());
-        Ok(client)
+        self.build_from_authenticator(sa_auth).await
     }
 
-    pub async fn build_from_service_account_key_file(
-        &self,
-        sa_key_file: &str,
-    ) -> Result<Client, BQError> {
+    pub async fn build_from_service_account_key_file(&self, sa_key_file: &str) -> Result<Client, BQError> {
         let scopes = vec![self.auth_base_url.as_str()];
         let sa_auth = service_account_authenticator(scopes, sa_key_file).await?;
 
-        let mut client = Client::from_authenticator(sa_auth);
-        client.v2_base_url(self.v2_base_url.clone());
-        Ok(client)
+        self.build_from_authenticator(sa_auth).await
     }
 
     pub async fn build_with_workload_identity(&self, readonly: bool) -> Result<Client, BQError> {
         let scope = if readonly {
-            format!("{}.readonly", BIG_QUERY_AUTH_URL)
+            format!("{BIG_QUERY_AUTH_URL}.readonly")
         } else {
             BIG_QUERY_AUTH_URL.to_string()
         };
 
         let sa_auth = ServiceAccountAuthenticator::with_workload_identity(&[&scope]).await?;
 
-        let mut client = Client::from_authenticator(sa_auth);
-        client.v2_base_url(self.v2_base_url.clone());
-        Ok(client)
+        self.build_from_authenticator(sa_auth).await
     }
 
     pub async fn build_from_installed_flow_authenticator<S: AsRef<[u8]>, P: Into<PathBuf>>(
@@ -84,7 +81,7 @@ impl ClientBuilder {
         let scopes = vec![self.auth_base_url.as_str()];
         let auth = installed_flow_authenticator(secret, &scopes, persistant_file_path).await?;
 
-        let mut client = Client::from_authenticator(auth);
+        let mut client = Client::from_authenticator(auth).await?;
         client.v2_base_url(self.v2_base_url.clone());
         Ok(client)
     }
@@ -107,7 +104,7 @@ impl ClientBuilder {
         let scopes = vec![self.auth_base_url.as_str()];
         let auth = application_default_credentials_authenticator(&scopes).await?;
 
-        let mut client = Client::from_authenticator(auth);
+        let mut client = Client::from_authenticator(auth).await?;
         client.v2_base_url(self.v2_base_url.clone());
         Ok(client)
     }
@@ -119,7 +116,7 @@ impl ClientBuilder {
         let scopes = vec![self.auth_base_url.as_str()];
         let auth = authorized_user_authenticator(authorized_user_secret_path, &scopes).await?;
 
-        let mut client = Client::from_authenticator(auth);
+        let mut client = Client::from_authenticator(auth).await?;
         client.v2_base_url(self.v2_base_url.clone());
         Ok(client)
     }
