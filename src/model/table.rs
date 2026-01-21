@@ -147,8 +147,9 @@ impl Table {
     }
 
     /// Returns the dataset id of table.
-    pub fn dataset_id(&self) -> &String {
-        &self.table_reference.dataset_id
+    /// Returns the dataset id of table.
+    pub fn dataset_id(&self) -> Option<&String> {
+        self.table_reference.dataset_id.as_ref()
     }
 
     /// Returns the table id of table.
@@ -252,9 +253,15 @@ impl Table {
     }
 
     pub async fn delete(self, client: &Client) -> Result<(), BQError> {
+        let dataset_id = self.dataset_id().ok_or_else(|| {
+            BQError::InvalidServiceAccountKey(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Missing dataset_id in table",
+            ))
+        })?;
         client
             .table()
-            .delete(self.project_id(), self.dataset_id(), self.table_id())
+            .delete(self.project_id(), dataset_id, self.table_id())
             .await
     }
 }

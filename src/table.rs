@@ -45,7 +45,12 @@ impl TableApi {
             "{base_url}/projects/{project_id}/datasets/{dataset_id}/tables",
             base_url = self.base_url,
             project_id = urlencode(&table.table_reference.project_id),
-            dataset_id = urlencode(&table.table_reference.dataset_id)
+            dataset_id = urlencode(table.table_reference.dataset_id.as_ref().ok_or_else(|| {
+                BQError::InvalidServiceAccountKey(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    "Missing dataset_id in table",
+                ))
+            })?)
         );
 
         let access_token = self.auth.access_token().await?;
@@ -429,7 +434,7 @@ mod test {
             .await?;
         let mut created_table_found = false;
         for table_list_tables in tables.tables.unwrap().iter() {
-            if &table_list_tables.table_reference.dataset_id == dataset_id {
+            if table_list_tables.table_reference.dataset_id.as_deref() == Some(dataset_id.as_str()) {
                 created_table_found = true;
             }
         }
