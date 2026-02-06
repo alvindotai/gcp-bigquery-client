@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
-
 fn default_time_partitioning_type() -> String {
     "DAY".to_string()
 }
