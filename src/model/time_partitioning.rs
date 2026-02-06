@@ -1,6 +1,11 @@
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
+
+fn default_time_partitioning_type() -> String {
+    "DAY".to_string()
+}
+
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TimePartitioning {
@@ -13,7 +18,7 @@ pub struct TimePartitioning {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub require_partition_filter: Option<bool>,
     /// [Required] The supported types are DAY, HOUR, MONTH, and YEAR, which will generate one partition per day, hour, month, and year, respectively. When the type is not specified, the default behavior is DAY.
-    #[serde(rename = "type")]
+    #[serde(rename = "type", default = "default_time_partitioning_type")]
     pub r#type: String,
 }
 
@@ -80,5 +85,24 @@ impl TimePartitioning {
     pub fn field(mut self, field: &str) -> Self {
         self.field = Some(field.to_string());
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_deserialize_time_partitioning_missing_type() {
+        let json = r#"{}"#;
+        let tp: TimePartitioning = serde_json::from_str(json).expect("should deserialize");
+        assert_eq!(tp.r#type, "DAY");
+    }
+
+    #[test]
+    fn test_deserialize_time_partitioning_with_type() {
+        let json = r#"{"type": "HOUR"}"#;
+        let tp: TimePartitioning = serde_json::from_str(json).expect("should deserialize");
+        assert_eq!(tp.r#type, "HOUR");
     }
 }
