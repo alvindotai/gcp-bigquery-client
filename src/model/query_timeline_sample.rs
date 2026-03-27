@@ -18,4 +18,6 @@ pub struct QueryTimelineSample {
     /// Cumulative slot-ms consumed by the query.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_slot_ms: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub estimated_runnable_units: Option<String>,
 }
