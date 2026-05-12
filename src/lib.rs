@@ -79,10 +79,11 @@ impl Client {
         let mut headers = header::HeaderMap::new();
         headers.insert(header::USER_AGENT, header::HeaderValue::from_static(user_agent));
 
-        let client = reqwest::Client::builder()
-            .default_headers(headers)
-            .max_tls_version(reqwest::tls::Version::TLS_1_2)
-            .build()?;
+        let mut builder = reqwest::Client::builder().default_headers(headers);
+        if std::env::var("GCP_MAX_TLS_VERSION").as_deref() == Ok("1.2") {
+            builder = builder.max_tls_version(reqwest::tls::Version::TLS_1_2);
+        }
+        let client = builder.build()?;
         let write_client = StorageApi::new_write_client_with_user_agent(user_agent).await?;
         let read_client = StorageApi::new_read_client_with_user_agent(user_agent).await?;
 
