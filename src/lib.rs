@@ -79,7 +79,10 @@ impl Client {
         let mut headers = header::HeaderMap::new();
         headers.insert(header::USER_AGENT, header::HeaderValue::from_static(user_agent));
 
-        let client = reqwest::Client::builder().default_headers(headers).build()?;
+        let client = reqwest::Client::builder()
+            .default_headers(headers)
+            .max_tls_version(reqwest::tls::Version::TLS_1_2)
+            .build()?;
         let write_client = StorageApi::new_write_client_with_user_agent(user_agent).await?;
         let read_client = StorageApi::new_read_client_with_user_agent(user_agent).await?;
 
