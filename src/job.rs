@@ -440,7 +440,15 @@ impl JobApi {
 
         let access_token = self.auth.access_token().await?;
 
-        let request = request_builder.bearer_auth(access_token).build()?;
+        // Google's servers return 411 Length Required for POST requests without
+        // a Content-Length header. Set the header and body AFTER all other
+        // builder mutations (.query(), .bearer_auth()) to ensure nothing
+        // overwrites the Content-Length.
+        let request = request_builder
+            .bearer_auth(access_token)
+            .header(reqwest::header::CONTENT_LENGTH, "0")
+            .body("")
+            .build()?;
 
         let resp = self.client.execute(request).await?;
 
