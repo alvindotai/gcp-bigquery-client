@@ -218,13 +218,45 @@ pub(crate) fn urlencode<T: AsRef<str>>(s: T) -> String {
     url::form_urlencoded::byte_serialize(s.as_ref().as_bytes()).collect()
 }
 
+use crate::error::{NestedResponseError, ResponseError};
+
 async fn process_response<T: for<'de> Deserialize<'de>>(resp: Response) -> Result<T, BQError> {
-    if resp.status().is_success() {
-        Ok(resp.json().await?)
+    let status = resp.status();
+    let body = resp.text().await.map_err(reqwest::Error::from)?;
+
+    if status.is_success() {
+        serde_json::from_str(&body).map_err(BQError::SerializationError)
     } else {
-        Err(BQError::ResponseError {
-            error: resp.json().await?,
-        })
+        // Try to parse the error body as a structured ResponseError.
+        // If that fails (empty body, HTML error page, etc.), synthesize a
+        // ResponseError that includes the HTTP status and raw body text
+        // so the caller can diagnose the issue (e.g., permission errors).
+        match serde_json::from_str::<ResponseError>(&body) {
+            Ok(error) => Err(BQError::ResponseError { error }),
+            Err(_) => Err(BQError::ResponseError {
+                error: ResponseError {
+                    error: NestedResponseError {
+                        code: status.as_u16() as i64,
+                        errors: vec![],
+                        message: if body.is_empty() {
+                            format!(
+                                "HTTP {} {} (empty response body)",
+                                status.as_u16(),
+                                status.canonical_reason().unwrap_or("")
+                            )
+                        } else {
+                            format!(
+                                "HTTP {} {}: {}",
+                                status.as_u16(),
+                                status.canonical_reason().unwrap_or(""),
+                                body
+                            )
+                        },
+                        status: status.to_string(),
+                    },
+                },
+            }),
+        }
     }
 }
 
@@ -258,4 +290,196 @@ pub mod google {
 
     #[path = "google.rpc.rs"]
     pub mod rpc;
+}
+
+#[cfg(test)]
+mod process_response_tests {
+    use super::*;
+    use crate::error::BQError;
+    use wiremock::matchers::method;
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    /// Helper: start a mock server, register a response, make a GET request,
+    /// and pass the reqwest::Response to process_response.
+    async fn call_process_response(status: u16, body: &str) -> Result<serde_json::Value, BQError> {
+        let server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(status).set_body_string(body.to_string()))
+            .mount(&server)
+            .await;
+
+        let resp = reqwest::get(&server.uri()).await.unwrap();
+        process_response(resp).await
+    }
+
+    // ─── Success Path ───
+
+    #[tokio::test]
+    async fn test_success_with_valid_json_body() {
+        // A normal success response with a JSON body should deserialize correctly.
+        let result = call_process_response(200, r#"{"kind":"bigquery#job","status":{"state":"DONE"}}"#).await;
+
+        assert!(result.is_ok(), "Should deserialize valid JSON body");
+        let val = result.unwrap();
+        assert_eq!(val["kind"], "bigquery#job");
+    }
+
+    #[tokio::test]
+    async fn test_success_with_empty_body_returns_serialization_error() {
+        // The BQ cancel_job API sometimes returns 200 OK with an empty body
+        // (especially for script child jobs). process_response should return
+        // a SerializationError so callers can distinguish this from real errors.
+        let result = call_process_response(200, "").await;
+        assert!(result.is_err());
+
+        let err = result.unwrap_err();
+        let err_debug = format!("{:?}", err);
+        assert!(
+            err_debug.contains("SerializationError"),
+            "Empty success body should produce SerializationError, got: {}",
+            err_debug
+        );
+    }
+
+    #[tokio::test]
+    async fn test_success_with_invalid_json_body_returns_serialization_error() {
+        // A success response with garbage body should return SerializationError.
+        let result = call_process_response(200, "not valid json{{{").await;
+        assert!(result.is_err());
+
+        let err = result.unwrap_err();
+        let err_debug = format!("{:?}", err);
+        assert!(
+            err_debug.contains("SerializationError"),
+            "Invalid JSON body should produce SerializationError, got: {}",
+            err_debug
+        );
+    }
+
+    // ─── Error Path: Structured JSON ───
+
+    #[tokio::test]
+    async fn test_error_with_structured_json_body() {
+        // A 403 response with a structured BQ error JSON body should parse
+        // into a ResponseError with the actual error details.
+        let body = r#"{
+            "error": {
+                "code": 403,
+                "message": "Access Denied: Job project-123:job-456. The user does not have bigquery.jobs.update permission.",
+                "errors": [{"message": "Access Denied", "domain": "global", "reason": "accessDenied"}],
+                "status": "PERMISSION_DENIED"
+            }
+        }"#;
+        let result = call_process_response(403, body).await;
+        assert!(result.is_err());
+
+        match result.unwrap_err() {
+            BQError::ResponseError { error } => {
+                assert_eq!(error.error.code, 403);
+                assert!(
+                    error.error.message.contains("Access Denied"),
+                    "Should contain actual BQ error message, got: {}",
+                    error.error.message
+                );
+                assert!(
+                    error.error.message.contains("bigquery.jobs.update"),
+                    "Should contain permission name, got: {}",
+                    error.error.message
+                );
+            }
+            other => panic!("Expected ResponseError, got: {:?}", other),
+        }
+    }
+
+    // ─── Error Path: Empty or Non-JSON Body ───
+
+    #[tokio::test]
+    async fn test_error_with_empty_body_synthesizes_response_error() {
+        // A 403 response with an empty body (can happen with some proxy configs)
+        // should synthesize a ResponseError with the HTTP status code and a
+        // descriptive message instead of a cryptic decode error.
+        let result = call_process_response(403, "").await;
+        assert!(result.is_err());
+
+        match result.unwrap_err() {
+            BQError::ResponseError { error } => {
+                assert_eq!(error.error.code, 403);
+                assert!(
+                    error.error.message.contains("HTTP 403"),
+                    "Should contain HTTP status in message, got: {}",
+                    error.error.message
+                );
+                assert!(
+                    error.error.message.contains("empty response body"),
+                    "Should mention empty body, got: {}",
+                    error.error.message
+                );
+            }
+            other => panic!("Expected ResponseError, got: {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_error_with_html_body_synthesizes_response_error() {
+        // Some load balancers/proxies return HTML error pages.
+        // process_response should include the raw HTML in the error message
+        // so operators can diagnose the issue.
+        let html = "<html><body><h1>502 Bad Gateway</h1></body></html>";
+        let result = call_process_response(502, html).await;
+        assert!(result.is_err());
+
+        match result.unwrap_err() {
+            BQError::ResponseError { error } => {
+                assert_eq!(error.error.code, 502);
+                assert!(
+                    error.error.message.contains("502"),
+                    "Should contain status code, got: {}",
+                    error.error.message
+                );
+                assert!(
+                    error.error.message.contains("Bad Gateway"),
+                    "Should contain raw body, got: {}",
+                    error.error.message
+                );
+            }
+            other => panic!("Expected ResponseError, got: {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_error_404_with_empty_body() {
+        // A 404 Not Found (e.g., job already deleted) with empty body.
+        let result = call_process_response(404, "").await;
+        assert!(result.is_err());
+
+        match result.unwrap_err() {
+            BQError::ResponseError { error } => {
+                assert_eq!(error.error.code, 404);
+                assert!(
+                    error.error.message.contains("HTTP 404"),
+                    "Message should include HTTP 404, got: {}",
+                    error.error.message
+                );
+            }
+            other => panic!("Expected ResponseError, got: {:?}", other),
+        }
+    }
+
+    // ─── Display Format Verification ───
+
+    #[tokio::test]
+    async fn test_error_display_format_is_human_readable() {
+        // Verify that the Display impl produces a message useful for logs
+        // (operators will see this in production error logs).
+        let result = call_process_response(403, "").await;
+        let err_display = format!("{}", result.unwrap_err());
+
+        // Display should include "Response error" and the synthesized message
+        assert!(
+            err_display.contains("403"),
+            "Display format should include status code for operators, got: {}",
+            err_display
+        );
+    }
 }
