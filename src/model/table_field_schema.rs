@@ -21,7 +21,18 @@ pub struct TableFieldSchema {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub policy_tags: Option<TableFieldSchemaPolicyTags>,
+    /// [Optional] The element type of a RANGE column (one of DATE, DATETIME, TIMESTAMP). Present only when `type` is RANGE.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub range_element_type: Option<RangeElementType>,
     /// [Required] The field data type. Possible values include STRING, BYTES, INTEGER, INT64 (same as INTEGER), FLOAT, FLOAT64 (same as FLOAT), NUMERIC, BIGNUMERIC, BOOLEAN, BOOL (same as BOOLEAN), TIMESTAMP, DATE, TIME, DATETIME, RECORD (where RECORD indicates that the field contains a nested schema) or STRUCT (same as RECORD).
+    pub r#type: FieldType,
+}
+
+/// The element type of a RANGE column (`TableFieldSchema.rangeElementType`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RangeElementType {
+    /// The range element type — DATE, DATETIME, or TIMESTAMP.
     pub r#type: FieldType,
 }
 
@@ -34,6 +45,7 @@ impl TableFieldSchema {
             mode: None,
             name: field_name.into(),
             policy_tags: None,
+            range_element_type: None,
             r#type: field_type,
         }
     }
@@ -46,6 +58,7 @@ impl TableFieldSchema {
             mode: None,
             name: field_name.into(),
             policy_tags: None,
+            range_element_type: None,
             r#type: FieldType::Integer,
         }
     }
@@ -58,6 +71,7 @@ impl TableFieldSchema {
             mode: None,
             name: field_name.into(),
             policy_tags: None,
+            range_element_type: None,
             r#type: FieldType::Float,
         }
     }
@@ -70,6 +84,7 @@ impl TableFieldSchema {
             mode: None,
             name: field_name.into(),
             policy_tags: None,
+            range_element_type: None,
             r#type: FieldType::Bool,
         }
     }
@@ -82,6 +97,7 @@ impl TableFieldSchema {
             mode: None,
             name: field_name.into(),
             policy_tags: None,
+            range_element_type: None,
             r#type: FieldType::String,
         }
     }
@@ -94,6 +110,7 @@ impl TableFieldSchema {
             mode: None,
             name: field_name.into(),
             policy_tags: None,
+            range_element_type: None,
             r#type: FieldType::Record,
         }
     }
@@ -106,6 +123,7 @@ impl TableFieldSchema {
             mode: None,
             name: field_name.into(),
             policy_tags: None,
+            range_element_type: None,
             r#type: FieldType::Bytes,
         }
     }
@@ -118,6 +136,7 @@ impl TableFieldSchema {
             mode: None,
             name: field_name.into(),
             policy_tags: None,
+            range_element_type: None,
             r#type: FieldType::Numeric,
         }
     }
@@ -130,6 +149,7 @@ impl TableFieldSchema {
             mode: None,
             name: field_name.into(),
             policy_tags: None,
+            range_element_type: None,
             r#type: FieldType::Bignumeric,
         }
     }
@@ -142,6 +162,7 @@ impl TableFieldSchema {
             mode: None,
             name: field_name.into(),
             policy_tags: None,
+            range_element_type: None,
             r#type: FieldType::Timestamp,
         }
     }
@@ -154,6 +175,7 @@ impl TableFieldSchema {
             mode: None,
             name: field_name.into(),
             policy_tags: None,
+            range_element_type: None,
             r#type: FieldType::Date,
         }
     }
@@ -166,6 +188,7 @@ impl TableFieldSchema {
             mode: None,
             name: field_name.into(),
             policy_tags: None,
+            range_element_type: None,
             r#type: FieldType::Time,
         }
     }
@@ -178,6 +201,7 @@ impl TableFieldSchema {
             mode: None,
             name: field_name.into(),
             policy_tags: None,
+            range_element_type: None,
             r#type: FieldType::Datetime,
         }
     }
@@ -190,6 +214,7 @@ impl TableFieldSchema {
             mode: None,
             name: field_name.into(),
             policy_tags: None,
+            range_element_type: None,
             r#type: FieldType::Geography,
         }
     }
@@ -202,6 +227,7 @@ impl TableFieldSchema {
             mode: None,
             name: field_name.into(),
             policy_tags: None,
+            range_element_type: None,
             r#type: FieldType::Json,
         }
     }
@@ -214,6 +240,7 @@ impl TableFieldSchema {
             mode: None,
             name: field_name.into(),
             policy_tags: None,
+            range_element_type: None,
             r#type: FieldType::Interval,
         }
     }
@@ -226,6 +253,7 @@ impl TableFieldSchema {
             mode: None,
             name: field_name.into(),
             policy_tags: None,
+            range_element_type: None,
             r#type: FieldType::Range,
         }
     }
