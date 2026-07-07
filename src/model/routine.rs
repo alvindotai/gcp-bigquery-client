@@ -45,6 +45,13 @@ pub enum RoutineType {
     Procedure,
     /// Non-built-in persistent TVF.
     TableValuedFunction,
+    /// Non-builtin permanent aggregate function (UDAF).
+    AggregateFunction,
+    /// Forward-compatibility catch-all: any routine type not yet modelled here
+    /// deserializes to this instead of failing the whole `routines.list`/`get`.
+    /// Consumers should treat it as an unmodelled routine type.
+    #[serde(other)]
+    Unknown,
 }
 
 /// Optional. Defaults to "SQL".
