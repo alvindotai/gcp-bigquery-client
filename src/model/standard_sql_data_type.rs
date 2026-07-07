@@ -10,6 +10,8 @@ pub struct StandardSqlDataType {
     pub type_kind: TypeKind,
     /// The type of the array's elements, if type_kind = "ARRAY".
     pub array_element_type: Option<Box<StandardSqlDataType>>,
+    /// The type of the range's elements, if type_kind = "RANGE".
+    pub range_element_type: Option<Box<StandardSqlDataType>>,
 }
 
 /// Required. The top level type of this field. Can be any standard SQL data type (e.g., "INT64", "DATE", "ARRAY").
@@ -46,4 +48,16 @@ pub enum TypeKind {
     Array,
     /// Encoded as a list with fields of type Type.struct_type[i]. List is used because a JSON object cannot have duplicate field names.
     Struct,
+    /// Encoded as a string representation of a JSON value.
+    Json,
+    /// Encoded as a string, e.g. "1-2 3 4:5:6.789".
+    Interval,
+    /// Encoded as a range value with its element type in range_element_type.
+    Range,
+    /// Forward-compatibility catch-all: any TypeKind not yet modelled here (e.g. a
+    /// future BigQuery standard SQL type) deserializes to this instead of failing
+    /// the whole `routines.get`/deserialization. Consumers should treat it as an
+    /// unmappable/unknown type and skip it gracefully.
+    #[serde(other)]
+    Unknown,
 }
