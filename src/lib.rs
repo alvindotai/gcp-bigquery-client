@@ -21,6 +21,7 @@ extern crate serde_json;
 use std::env;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 
 use client_builder::ClientBuilder;
 use reqwest::{header, Response};
@@ -79,7 +80,21 @@ impl Client {
         let mut headers = header::HeaderMap::new();
         headers.insert(header::USER_AGENT, header::HeaderValue::from_static(user_agent));
 
-        let mut builder = reqwest::Client::builder().default_headers(headers);
+        // Connection-liveness settings only — deliberately NO `.timeout()`, so a
+        // legitimately slow response can never be cut short and existing behaviour on
+        // healthy connections is unchanged.
+        //
+        // Without these, reqwest has no limits at all: a connection that dies silently
+        // (network transition, idle pooled socket the peer already dropped) leaves a
+        // request waiting forever, because a hang produces no error the caller's retry
+        // logic can see. `connect_timeout` bounds only TCP/TLS establishment;
+        // `tcp_keepalive` makes the OS notice a dead peer; `pool_idle_timeout` stops us
+        // reusing a pooled connection that has gone stale.
+        let mut builder = reqwest::Client::builder()
+            .default_headers(headers)
+            .connect_timeout(Duration::from_secs(30))
+            .tcp_keepalive(Duration::from_secs(60))
+            .pool_idle_timeout(Duration::from_secs(30));
         if std::env::var("GCP_MAX_TLS_VERSION").as_deref() == Ok("1.2") {
             builder = builder.max_tls_version(reqwest::tls::Version::TLS_1_2);
         }
