@@ -1,4 +1,5 @@
 //! Manage BigQuery jobs.
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_stream::stream;
@@ -143,11 +144,24 @@ impl JobApi {
         query: JobConfigurationQuery,
         page_size: Option<i32>,
     ) -> impl Stream<Item = Result<Vec<TableRow>, BQError>> + 'a {
+        self.query_all_with_location_and_labels(project_id, location, query, None, page_size)
+    }
+
+    /// [`Self::query_all_with_location`], with `labels` set on the inserted job.
+    pub fn query_all_with_location_and_labels<'a>(
+        &'a self,
+        project_id: &'a str,
+        location: &'a str,
+        query: JobConfigurationQuery,
+        labels: Option<HashMap<String, String>>,
+        page_size: Option<i32>,
+    ) -> impl Stream<Item = Result<Vec<TableRow>, BQError>> + 'a {
         stream! {
             let job = Job {
                 configuration: Some(JobConfiguration {
                     dry_run: Some(false),
                     query:   Some(query),
+                    labels,
                     ..Default::default()
                 }),
                 job_reference: Some(JobReference {
